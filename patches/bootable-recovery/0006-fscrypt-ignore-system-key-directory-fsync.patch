@@ -1,0 +1,82 @@
+diff --git a/crypto/fscrypt/FsCrypt.cpp b/crypto/fscrypt/FsCrypt.cpp
+index a2049a2..1fc55c7 100755
+--- a/crypto/fscrypt/FsCrypt.cpp
++++ b/crypto/fscrypt/FsCrypt.cpp
+@@ -458,39 +458,68 @@ bool fscrypt_initialize_systemwide_keys() {
+     LOG(INFO) << "fscrypt_initialize_systemwide_keys";
+ 
+     EncryptionOptions options;
+-    if (!get_data_file_encryption_options(&options)) return false;
++    if (!get_data_file_encryption_options(&options)) {
++        printf("fscrypt init failed: encryption options\n");
++        return false;
++    }
+ 
+     KeyBuffer device_key;
+     if (!retrieveOrGenerateKey(device_key_path, device_key_temp, kEmptyAuthentication,
+-                               makeGen(options), &device_key))
++                               makeGen(options), &device_key)) {
++        printf("fscrypt init failed: retrieve device key\n");
+         return false;
++    }
+ 
+     EncryptionPolicy device_policy;
+-    if (!install_storage_key(DATA_MNT_POINT, options, device_key, &device_policy)) return false;
++    if (!install_storage_key(DATA_MNT_POINT, options, device_key, &device_policy)) {
++        printf("fscrypt init failed: install device key\n");
++        return false;
++    }
+ 
+     std::string options_string;
+     if (!OptionsToString(device_policy.options, &options_string)) {
++        printf("fscrypt init failed: serialize options\n");
+         LOG(ERROR) << "Unable to serialize options";
+         return false;
+     }
+     std::string options_filename = std::string(DATA_MNT_POINT) + fscrypt_key_mode;
+-    if (!::writeStringToFile(options_string, options_filename)) return false;
++    if (!::writeStringToFile(options_string, options_filename)) {
++        printf("fscrypt init failed: write mode\n");
++        return false;
++    }
+ 
+     std::string ref_filename = std::string(DATA_MNT_POINT) + fscrypt_key_ref;
+     de_key_raw_ref = device_policy.key_raw_ref;
+-    if (!::writeStringToFile(device_policy.key_raw_ref, ref_filename)) return false;
++    if (!::writeStringToFile(device_policy.key_raw_ref, ref_filename)) {
++        printf("fscrypt init failed: write device key reference\n");
++        return false;
++    }
+     LOG(INFO) << "Wrote system DE key reference to:" << ref_filename;
+ 
+     KeyBuffer per_boot_key;
+-    if (!generateStorageKey(makeGen(options), &per_boot_key)) return false;
++    if (!generateStorageKey(makeGen(options), &per_boot_key)) {
++        printf("fscrypt init failed: generate per-boot key\n");
++        return false;
++    }
+     EncryptionPolicy per_boot_policy;
+-    if (!install_storage_key(DATA_MNT_POINT, options, per_boot_key, &per_boot_policy)) return false;
++    if (!install_storage_key(DATA_MNT_POINT, options, per_boot_key, &per_boot_policy)) {
++        printf("fscrypt init failed: install per-boot key\n");
++        return false;
++    }
+     std::string per_boot_ref_filename = std::string("/data") + fscrypt_key_per_boot_ref;
+-    if (!::writeStringToFile(per_boot_policy.key_raw_ref, per_boot_ref_filename))
++    if (!::writeStringToFile(per_boot_policy.key_raw_ref, per_boot_ref_filename)) {
++        printf("fscrypt init failed: write per-boot key reference\n");
+         return false;
++    }
+     LOG(INFO) << "Wrote per boot key reference to:" << per_boot_ref_filename;
+ 
+-    if (!::FsyncDirectory(device_key_dir)) return false;
++    // Some vendor F2FS kernels reject fsync() on this directory even though
++    // the key files were written and both storage keys are already installed.
++    // Durability of these helper files is not required for recovery's current
++    // boot, so do not abort before loading the user DE and CE keys.
++    if (!::FsyncDirectory(device_key_dir))
++        LOG(WARNING) << "Unable to fsync system key directory; continuing in recovery";
++    printf("fscrypt init: systemwide keys ready\n");
+     return true;
+ }
+ 

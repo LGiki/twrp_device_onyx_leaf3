@@ -1,0 +1,262 @@
+diff --git a/minuitwrp/graphics_drm.cpp b/minuitwrp/graphics_drm.cpp
+index 2b94dda..afaa2e9 100644
+--- a/minuitwrp/graphics_drm.cpp
++++ b/minuitwrp/graphics_drm.cpp
+@@ -15,6 +15,7 @@
+  */
+ 
+ #include <drm_fourcc.h>
++#include <errno.h>
+ #include <fcntl.h>
+ #include <stdbool.h>
+ #include <stdio.h>
+@@ -49,6 +50,168 @@ static drmModeConnector *main_monitor_connector;
+ 
+ static int drm_fd = -1;
+ 
++/*
++ * ONYX's EPDC driver does not support the legacy drmModeSetCrtc/page-flip
++ * path. It exposes a split-plane atomic pipeline plus two private properties
++ * used to submit an mxcfb-style update description.
++ */
++struct onyx_epdc_update {
++    uint32_t top;
++    uint32_t left;
++    uint32_t width;
++    uint32_t height;
++    uint32_t waveform_mode;
++    uint32_t update_mode;
++    uint32_t update_marker;
++    int32_t temperature;
++    uint32_t flags;
++};
++
++static uint32_t main_crtc_index;
++static uint32_t epdc_plane_ids[2];
++static size_t epdc_plane_count;
++static uint32_t mode_blob_id;
++static uint32_t update_marker;
++static struct onyx_epdc_update epdc_update;
++
++static uint32_t drm_get_property_id(uint32_t object_id,
++                                    uint32_t object_type,
++                                    const char* name) {
++    drmModeObjectProperties* props =
++            drmModeObjectGetProperties(drm_fd, object_id, object_type);
++    if (!props)
++        return 0;
++
++    uint32_t id = 0;
++    for (uint32_t i = 0; i < props->count_props; ++i) {
++        drmModePropertyRes* prop = drmModeGetProperty(drm_fd, props->props[i]);
++        if (prop) {
++            if (!strcmp(prop->name, name))
++                id = prop->prop_id;
++            drmModeFreeProperty(prop);
++        }
++        if (id)
++            break;
++    }
++    drmModeFreeObjectProperties(props);
++    return id;
++}
++
++static bool drm_atomic_add(drmModeAtomicReq* req,
++                           uint32_t object_id,
++                           uint32_t object_type,
++                           const char* name,
++                           uint64_t value) {
++    uint32_t prop_id = drm_get_property_id(object_id, object_type, name);
++    if (!prop_id) {
++        printf("Missing DRM property %s on object %u\n", name, object_id);
++        return false;
++    }
++    if (drmModeAtomicAddProperty(req, object_id, prop_id, value) < 0) {
++        printf("Failed to add DRM property %s on object %u\n", name, object_id);
++        return false;
++    }
++    return true;
++}
++
++static bool drm_find_epdc_planes() {
++    drmModePlaneRes* plane_res = drmModeGetPlaneResources(drm_fd);
++    if (!plane_res)
++        return false;
++
++    epdc_plane_count = 0;
++    /* Plane zero belongs to the bootloader continuous-splash handoff. */
++    for (uint32_t i = 1; i < plane_res->count_planes && epdc_plane_count < 2; ++i) {
++        drmModePlane* plane = drmModeGetPlane(drm_fd, plane_res->planes[i]);
++        if (plane) {
++            if (plane->possible_crtcs & (1U << main_crtc_index))
++                epdc_plane_ids[epdc_plane_count++] = plane->plane_id;
++            drmModeFreePlane(plane);
++        }
++    }
++    drmModeFreePlaneResources(plane_res);
++    printf("ONYX EPDC: selected %zu atomic planes: %u,%u\n",
++           epdc_plane_count, epdc_plane_ids[0], epdc_plane_ids[1]);
++    return epdc_plane_count != 0;
++}
++
++static int drm_epdc_commit(struct drm_surface* surface, bool modeset) {
++    drmModeAtomicReq* req = drmModeAtomicAlloc();
++    if (!req)
++        return -ENOMEM;
++
++    bool ok = true;
++    const uint32_t width = surface->base.width;
++    const uint32_t height = surface->base.height;
++
++    if (modeset) {
++        ok &= drm_atomic_add(req, main_monitor_connector->connector_id,
++                             DRM_MODE_OBJECT_CONNECTOR, "CRTC_ID",
++                             main_monitor_crtc->crtc_id);
++        ok &= drm_atomic_add(req, main_monitor_crtc->crtc_id,
++                             DRM_MODE_OBJECT_CRTC, "MODE_ID", mode_blob_id);
++        ok &= drm_atomic_add(req, main_monitor_crtc->crtc_id,
++                             DRM_MODE_OBJECT_CRTC, "ACTIVE", 1);
++    }
++
++    for (size_t i = 0; i < epdc_plane_count; ++i) {
++        uint32_t x = (width * i) / epdc_plane_count;
++        uint32_t next_x = (width * (i + 1)) / epdc_plane_count;
++        uint32_t slice_width = next_x - x;
++        uint32_t plane = epdc_plane_ids[i];
++
++        ok &= drm_atomic_add(req, plane, DRM_MODE_OBJECT_PLANE,
++                             "FB_ID", surface->fb_id);
++        if (modeset) {
++            ok &= drm_atomic_add(req, plane, DRM_MODE_OBJECT_PLANE,
++                                 "CRTC_ID", main_monitor_crtc->crtc_id);
++            ok &= drm_atomic_add(req, plane, DRM_MODE_OBJECT_PLANE,
++                                 "SRC_X", (uint64_t)x << 16);
++            ok &= drm_atomic_add(req, plane, DRM_MODE_OBJECT_PLANE,
++                                 "SRC_Y", 0);
++            ok &= drm_atomic_add(req, plane, DRM_MODE_OBJECT_PLANE,
++                                 "SRC_W", (uint64_t)slice_width << 16);
++            ok &= drm_atomic_add(req, plane, DRM_MODE_OBJECT_PLANE,
++                                 "SRC_H", (uint64_t)height << 16);
++            ok &= drm_atomic_add(req, plane, DRM_MODE_OBJECT_PLANE,
++                                 "CRTC_X", x);
++            ok &= drm_atomic_add(req, plane, DRM_MODE_OBJECT_PLANE,
++                                 "CRTC_Y", 0);
++            ok &= drm_atomic_add(req, plane, DRM_MODE_OBJECT_PLANE,
++                                 "CRTC_W", slice_width);
++            ok &= drm_atomic_add(req, plane, DRM_MODE_OBJECT_PLANE,
++                                 "CRTC_H", height);
++        }
++    }
++
++    if (!modeset) {
++        epdc_update.top = 0;
++        epdc_update.left = 0;
++        epdc_update.width = width;
++        epdc_update.height = height;
++        epdc_update.waveform_mode = 2;
++        epdc_update.update_mode = 0;
++        epdc_update.update_marker = update_marker++;
++        epdc_update.temperature = 24;
++        epdc_update.flags = 0;
++
++        ok &= drm_atomic_add(req, epdc_plane_ids[0], DRM_MODE_OBJECT_PLANE,
++                             "EPDC_UPDATE_CNT", 1);
++        ok &= drm_atomic_add(req, epdc_plane_ids[0], DRM_MODE_OBJECT_PLANE,
++                             "EPDC_UPDATE_PARMS_ADDR",
++                             reinterpret_cast<uintptr_t>(&epdc_update));
++    }
++
++    printf("ONYX EPDC commit: modeset=%d fb=%u planes=%u,%u marker=%u\n",
++           modeset, surface->fb_id, epdc_plane_ids[0], epdc_plane_ids[1], update_marker);
++    int ret = ok ? drmModeAtomicCommit(drm_fd, req,
++                                       DRM_MODE_ATOMIC_ALLOW_MODESET, NULL)
++                 : -EINVAL;
++    drmModeAtomicFree(req);
++    printf("ONYX EPDC commit result=%d\n", ret);
++    return ret;
++}
++
+ static void drm_disable_crtc(int drm_fd, drmModeCrtc *crtc) {
+     if (crtc) {
+         drmModeSetCrtc(drm_fd, crtc->crtc_id,
+@@ -356,10 +515,15 @@ static void disable_non_main_crtcs(int fd,
+         drmModeConnector *connector;
+ 
+         connector = drmModeGetConnector(fd, resources->connectors[i]);
++        if (!connector)
++            continue;
++
+         crtc = find_crtc_for_connector(fd, resources, connector);
+-        if (crtc->crtc_id != main_crtc->crtc_id)
++        if (crtc && crtc->crtc_id != main_crtc->crtc_id)
+             drm_disable_crtc(fd, crtc);
+-        drmModeFreeCrtc(crtc);
++        if (crtc)
++            drmModeFreeCrtc(crtc);
++        drmModeFreeConnector(connector);
+     }
+ }
+ 
+@@ -436,6 +600,14 @@ static GRSurface* drm_init(minui_backend* backend __unused) {
+ 
+     main_monitor_crtc->mode = main_monitor_connector->modes[selected_mode];
+ 
++    main_crtc_index = 0;
++    for (i = 0; i < res->count_crtcs; ++i) {
++        if (res->crtcs[i] == main_monitor_crtc->crtc_id) {
++            main_crtc_index = i;
++            break;
++        }
++    }
++
+     width = main_monitor_crtc->mode.hdisplay;
+     height = main_monitor_crtc->mode.vdisplay;
+ 
+@@ -475,7 +647,22 @@ static GRSurface* drm_init(minui_backend* backend __unused) {
+ 
+     current_buffer = 0;
+ 
+-    drm_enable_crtc(drm_fd, main_monitor_crtc, drm_surfaces[1]);
++    printf("ONYX EPDC: waiting 4 seconds for waveform initialization\n");
++    sleep(4);
++
++    if (drmSetClientCap(drm_fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1) ||
++        drmSetClientCap(drm_fd, DRM_CLIENT_CAP_ATOMIC, 1) ||
++        !drm_find_epdc_planes() ||
++        drmModeCreatePropertyBlob(drm_fd, &main_monitor_crtc->mode,
++                                  sizeof(main_monitor_crtc->mode),
++                                  &mode_blob_id)) {
++        printf("ONYX EPDC atomic initialization failed\n");
++        return draw_buf;
++    }
++
++    memcpy(drm_surfaces[1]->base.data, draw_buf->data,
++           draw_buf->height * draw_buf->row_bytes);
++    drm_epdc_commit(drm_surfaces[1], true);
+ 
+     return draw_buf;
+ }
+@@ -486,11 +669,10 @@ static GRSurface* drm_flip(minui_backend* backend __unused) {
+             draw_buf->data, draw_buf->height * draw_buf->row_bytes);
+ 
+ 
+-    ret = drmModePageFlip(drm_fd, main_monitor_crtc->crtc_id,
+-                          drm_surfaces[current_buffer]->fb_id, 0, NULL);
++    ret = drm_epdc_commit(drm_surfaces[current_buffer], false);
+     if (ret < 0) {
+-        printf("drmModePageFlip failed ret=%d\n", ret);
+-        return NULL;
++        printf("ONYX EPDC flip failed ret=%d\n", ret);
++        return draw_buf;
+     }
+     current_buffer = 1 - current_buffer;
+     return draw_buf;
+@@ -502,6 +684,8 @@ static void drm_exit(minui_backend* backend __unused) {
+     drm_destroy_surface(drm_surfaces[1]);
+     drmModeFreeCrtc(main_monitor_crtc);
+     drmModeFreeConnector(main_monitor_connector);
++    if (mode_blob_id)
++        drmModeDestroyPropertyBlob(drm_fd, mode_blob_id);
+     close(drm_fd);
+     drm_fd = -1;
+ }

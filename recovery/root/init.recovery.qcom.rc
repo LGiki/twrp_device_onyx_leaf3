@@ -1,0 +1,61 @@
+on init
+    # Android's FBE key installation also stores provisioning keys here.
+    # Without this, the filesystem ioctl succeeds but TWRP reports failure.
+    install_keyring
+    write /sys/class/backlight/panel0-backlight/brightness 200
+    setprop sys.usb.configfs 1
+    setprop persist.sys.usb.config adb
+    setprop sys.usb.controller 4e00000.dwc3
+    write /sys/class/udc/4e00000.dwc3/device/../mode peripheral
+
+on property:ro.boot.usbcontroller=*
+    setprop sys.usb.controller ${ro.boot.usbcontroller}
+    write /sys/class/udc/${ro.boot.usbcontroller}/device/../mode peripheral
+
+on fs
+    wait /dev/block/platform/soc/${ro.boot.bootdevice}
+    symlink /dev/block/platform/soc/${ro.boot.bootdevice} /dev/block/bootdevice
+    setprop ro.board.platform bengal
+    setprop sys.usb.config adb
+    start adbd
+
+# The stock userdata key is hardware-wrapped. TWRP mounts vendor immediately
+# before starting these services so they can use the stock Qualcomm HAL and
+# its matching vendor libraries. Vendor is mounted too late for init to parse
+# its rc files, so reproduce the required part of the stock early_hal chain.
+service leaf3-qseecomd /vendor/bin/qseecomd
+    user root
+    group root
+    setenv LD_LIBRARY_PATH /apex/com.android.art.release/lib64:/vendor/lib64:/vendor/lib:/system/lib64:/system/lib
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0
+
+service leaf3-keymaster /vendor/bin/hw/android.hardware.keymaster@4.1-service-qti
+    interface android.hardware.keymaster@4.0::IKeymasterDevice default
+    interface android.hardware.keymaster@4.1::IKeymasterDevice default
+    user root
+    group root system drmrpc
+    setenv LD_LIBRARY_PATH /vendor/lib64:/vendor/lib:/system/lib64:/system/lib
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0
+
+service leaf3-gatekeeper /vendor/bin/hw/android.hardware.gatekeeper@1.0-service-qti
+    interface android.hardware.gatekeeper@1.0::IGatekeeper default
+    user root
+    group root system
+    setenv LD_LIBRARY_PATH /vendor/lib64:/vendor/lib:/system/lib64:/system/lib
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0
+
+service leaf3-boot-hal /vendor/bin/hw/android.hardware.boot@1.1-service
+    interface android.hardware.boot@1.0::IBootControl default
+    interface android.hardware.boot@1.1::IBootControl default
+    user root
+    group root
+    setenv LD_LIBRARY_PATH /vendor/lib64:/vendor/lib:/system/lib64:/system/lib
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0

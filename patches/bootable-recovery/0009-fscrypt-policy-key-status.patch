@@ -1,0 +1,74 @@
+diff --git a/crypto/fscrypt/fscryptpolicyget.cpp b/crypto/fscrypt/fscryptpolicyget.cpp
+index c8ee0dbcb..09c816a81 100644
+--- a/crypto/fscrypt/fscryptpolicyget.cpp
++++ b/crypto/fscrypt/fscryptpolicyget.cpp
+@@ -15,6 +15,9 @@
+  */
+ 
++#include <errno.h>
++#include <fcntl.h>
++#include <linux/fscrypt.h>
++#include <sys/ioctl.h>
++#include <unistd.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -36,7 +39,29 @@ int main(int argc, char *argv[]) {
+ 			char policy_hex[FSCRYPT_KEY_IDENTIFIER_HEX_SIZE];
+ 			bytes_to_hex(fep.master_key_identifier, FSCRYPT_KEY_IDENTIFIER_SIZE, policy_hex);
+ #endif
+-			printf("%s\n", policy_hex);
++			printf("id=%s version=%u contents=%u filenames=%u flags=0x%02x\n", policy_hex,
++			       fep.version, fep.contents_encryption_mode, fep.filenames_encryption_mode,
++			       fep.flags);
++#ifndef USE_FSCRYPT_POLICY_V1
++			int fd = open(argv[1], O_RDONLY | O_DIRECTORY | O_CLOEXEC);
++			if (fd < 0) {
++				printf("key_status=open_failed errno=%d\n", errno);
++				return 1;
++			}
++			struct fscrypt_get_key_status_arg status = {};
++			status.key_spec.type = FSCRYPT_KEY_SPEC_TYPE_IDENTIFIER;
++			memcpy(status.key_spec.u.identifier, fep.master_key_identifier,
++			       FSCRYPT_KEY_IDENTIFIER_SIZE);
++			if (ioctl(fd, FS_IOC_GET_ENCRYPTION_KEY_STATUS, &status) != 0) {
++				printf("key_status=ioctl_failed errno=%d\n", errno);
++				close(fd);
++				return 1;
++			}
++			close(fd);
++			printf("key_status=%u status_flags=0x%x user_count=%u\n", status.status,
++			       status.status_flags, status.user_count);
++#endif
+ 		} else {
+ 			printf("No policy set\n");
+ 		}
+diff --git a/crypto/fscrypt/KeyUtil.cpp b/crypto/fscrypt/KeyUtil.cpp
+index b7119a6..2b368c8 100755
+--- a/crypto/fscrypt/KeyUtil.cpp
++++ b/crypto/fscrypt/KeyUtil.cpp
+@@ -252,6 +252,19 @@ static bool installFsKeyringKey(const std::string& mountpoint, const EncryptionO
+         return false;
+     }
+ 
++    printf("fscrypt key ioctl: raw_size=%u flags=%u policy=%d\n", arg->raw_size, arg->flags,
++           options.version);
+     if (ioctl(fd, FS_IOC_ADD_ENCRYPTION_KEY, arg) != 0) {
++        printf("fscrypt key ioctl failed: errno=%d\n", errno);
+         PLOG(ERROR) << "Failed to install fscrypt key to " << mountpoint;
+         return false;
+     }
++    if (arg->key_spec.type == FSCRYPT_KEY_SPEC_TYPE_IDENTIFIER) {
++        struct fscrypt_get_key_status_arg status = {};
++        status.key_spec = arg->key_spec;
++        if (ioctl(fd, FS_IOC_GET_ENCRYPTION_KEY_STATUS, &status) != 0) {
++            PLOG(ERROR) << "Failed to query installed fscrypt key on " << mountpoint;
++            return false;
++        }
++        printf("fscrypt key status: status=%u flags=%u users=%u\n", status.status,
++               status.status_flags, status.user_count);
++        if (status.status != FSCRYPT_KEY_STATUS_PRESENT) return false;
++    }
+ 
+     return true;
+ }

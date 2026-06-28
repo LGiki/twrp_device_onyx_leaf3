@@ -1,0 +1,18 @@
+diff --git a/crypto/fscrypt/FsCrypt.cpp b/crypto/fscrypt/FsCrypt.cpp
+index 1fc55c7..3fbcac9 100755
+--- a/crypto/fscrypt/FsCrypt.cpp
++++ b/crypto/fscrypt/FsCrypt.cpp
+@@ -502,8 +502,11 @@ bool fscrypt_initialize_systemwide_keys() {
+ 
+     KeyBuffer per_boot_key;
+     if (!generateStorageKey(makeGen(options), &per_boot_key)) {
+-        printf("fscrypt init failed: generate per-boot key\n");
+-        return false;
++        // /data/per_boot contains disposable state. Some vendor Keymaster
++        // implementations cannot generate a new wrapped key in recovery, but
++        // the already-installed device key is sufficient to load user DE/CE.
++        printf("fscrypt init: per-boot key unavailable; continuing\n");
++        return true;
+     }
+     EncryptionPolicy per_boot_policy;
+     if (!install_storage_key(DATA_MNT_POINT, options, per_boot_key, &per_boot_policy)) {

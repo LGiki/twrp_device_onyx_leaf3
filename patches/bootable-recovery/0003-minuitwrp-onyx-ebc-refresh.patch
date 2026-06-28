@@ -1,0 +1,193 @@
+diff --git a/minuitwrp/graphics_drm.cpp b/minuitwrp/graphics_drm.cpp
+index afaa2e9..6263e7f 100644
+--- a/minuitwrp/graphics_drm.cpp
++++ b/minuitwrp/graphics_drm.cpp
+@@ -50,28 +50,35 @@ static drmModeConnector *main_monitor_connector;
+ 
+ static int drm_fd = -1;
+ 
+-/*
+- * ONYX's EPDC driver does not support the legacy drmModeSetCrtc/page-flip
+- * path. It exposes a split-plane atomic pipeline plus two private properties
+- * used to submit an mxcfb-style update description.
+- */
+-struct onyx_epdc_update {
+-    uint32_t top;
++/* Private ONYX ioctls recovered from the stock ttyscreen binary. */
++#define ONYX_EBC_GET_BUFFER_INFO 0x7003
++#define ONYX_EBC_SEND_UPDATE 0x700c
++#define ONYX_EBC_AUTO_TEMP 0x1000
++#define ONYX_EBC_DITHER_FLAG 0x20000
++
++struct onyx_ebc_buffer_info {
++    uint32_t words[14];
++};
++
++struct onyx_ebc_update {
+     uint32_t left;
++    uint32_t top;
+     uint32_t width;
+     uint32_t height;
+     uint32_t waveform_mode;
+     uint32_t update_mode;
+     uint32_t update_marker;
+     int32_t temperature;
+     uint32_t flags;
+ };
+ 
++static int ebc_fd = -1;
++static uint8_t* ebc_buffer;
++static size_t ebc_buffer_size;
+ static uint32_t main_crtc_index;
+ static uint32_t epdc_plane_ids[2];
+ static size_t epdc_plane_count;
+ static uint32_t mode_blob_id;
+-static uint32_t update_marker;
+-static struct onyx_epdc_update epdc_update;
++static uint32_t update_marker = 1;
+ 
+ static uint32_t drm_get_property_id(uint32_t object_id,
+                                     uint32_t object_type,
+@@ -187,24 +194,6 @@ static int drm_epdc_commit(struct drm_surface* surface, bool modeset) {
+         }
+     }
+ 
+-    if (!modeset) {
+-        epdc_update.top = 0;
+-        epdc_update.left = 0;
+-        epdc_update.width = width;
+-        epdc_update.height = height;
+-        epdc_update.waveform_mode = 2;
+-        epdc_update.update_mode = 0;
+-        epdc_update.update_marker = update_marker++;
+-        epdc_update.temperature = 24;
+-        epdc_update.flags = 0;
+-
+-        ok &= drm_atomic_add(req, epdc_plane_ids[0], DRM_MODE_OBJECT_PLANE,
+-                             "EPDC_UPDATE_CNT", 1);
+-        ok &= drm_atomic_add(req, epdc_plane_ids[0], DRM_MODE_OBJECT_PLANE,
+-                             "EPDC_UPDATE_PARMS_ADDR",
+-                             reinterpret_cast<uintptr_t>(&epdc_update));
+-    }
+-
+     printf("ONYX EPDC commit: modeset=%d fb=%u planes=%u,%u marker=%u\n",
+            modeset, surface->fb_id, epdc_plane_ids[0], epdc_plane_ids[1], update_marker);
+     int ret = ok ? drmModeAtomicCommit(drm_fd, req,
+@@ -213,6 +202,85 @@ static int drm_epdc_commit(struct drm_surface* surface, bool modeset) {
+     return ret;
+ }
+ 
++static bool onyx_ebc_init(uint32_t width, uint32_t height) {
++    struct onyx_ebc_buffer_info info = {};
++
++    ebc_fd = open("/dev/ebc", O_RDWR);
++    if (ebc_fd < 0) {
++        perror("ONYX EBC: open /dev/ebc failed");
++        return false;
++    }
++
++    int info_size = ioctl(ebc_fd, ONYX_EBC_GET_BUFFER_INFO, nullptr);
++    if (info_size != 0 && info_size != (int)sizeof(info)) {
++        printf("ONYX EBC: unexpected buffer-info size %d (expected %zu)\n",
++               info_size, sizeof(info));
++        close(ebc_fd);
++        ebc_fd = -1;
++        return false;
++    }
++
++    /* These are the request dimensions used by ONYX ttyscreen. */
++    info.words[6] = 1872;
++    info.words[7] = 1404;
++    if (ioctl(ebc_fd, ONYX_EBC_GET_BUFFER_INFO, &info) < 0) {
++        perror("ONYX EBC: GET_BUFFER_INFO failed");
++        close(ebc_fd);
++        ebc_fd = -1;
++        return false;
++    }
++
++    uint32_t ebc_width = info.words[6];
++    uint32_t ebc_height = info.words[7];
++    if (ebc_width != width || ebc_height != height) {
++        printf("ONYX EBC: buffer is %ux%u, DRM mode is %ux%u\n",
++               ebc_width, ebc_height, width, height);
++        close(ebc_fd);
++        ebc_fd = -1;
++        return false;
++    }
++
++    ebc_buffer_size = (size_t)width * height * 4;
++    ebc_buffer = static_cast<uint8_t*>(mmap(nullptr, ebc_buffer_size,
++                                             PROT_READ | PROT_WRITE,
++                                             MAP_SHARED, ebc_fd, 0));
++    if (ebc_buffer == MAP_FAILED) {
++        perror("ONYX EBC: mmap failed");
++        ebc_buffer = nullptr;
++        close(ebc_fd);
++        ebc_fd = -1;
++        return false;
++    }
++
++    printf("ONYX EBC: mapped %ux%u update buffer\n", width, height);
++    return true;
++}
++
++static int onyx_ebc_flip(const GRSurface* surface) {
++    if (ebc_fd < 0 || !ebc_buffer)
++        return -ENODEV;
++
++    const size_t packed_row_bytes = (size_t)surface->width * 4;
++    for (uint32_t y = 0; y < surface->height; ++y) {
++        memcpy(ebc_buffer + y * packed_row_bytes,
++               surface->data + y * surface->row_bytes,
++               packed_row_bytes);
++    }
++
++    struct onyx_ebc_update update = {};
++    update.width = surface->width;
++    update.height = surface->height;
++    update.waveform_mode = 5;
++    update.update_mode = 1;
++    update.update_marker = update_marker++;
++    update.temperature = ONYX_EBC_AUTO_TEMP;
++    update.flags = ONYX_EBC_DITHER_FLAG;
++
++    int ret = ioctl(ebc_fd, ONYX_EBC_SEND_UPDATE, &update);
++    if (ret < 0)
++        perror("ONYX EBC: SEND_UPDATE failed");
++    return ret;
++}
++
+ static void drm_disable_crtc(int drm_fd, drmModeCrtc *crtc) {
+     if (crtc) {
+         drmModeSetCrtc(drm_fd, crtc->crtc_id,
+@@ -668,6 +751,8 @@ static GRSurface* drm_init(minui_backend* backend __unused) {
+            draw_buf->height * draw_buf->row_bytes);
+     drm_epdc_commit(drm_surfaces[1], true);
+ 
++    onyx_ebc_init(width, height);
++
+     return draw_buf;
+ }
+ 
+@@ -677,7 +762,7 @@ static GRSurface* drm_flip(minui_backend* backend __unused) {
+             draw_buf->data, draw_buf->height * draw_buf->row_bytes);
+ 
+ 
+-    ret = drm_epdc_commit(drm_surfaces[current_buffer], false);
++    ret = onyx_ebc_flip(draw_buf);
+     if (ret < 0) {
+         printf("ONYX EPDC flip failed ret=%d\n", ret);
+         return draw_buf;
+@@ -689,6 +774,12 @@ static GRSurface* drm_flip(minui_backend* backend __unused) {
+ }
+ 
+ static void drm_exit(minui_backend* backend __unused) {
++    if (ebc_buffer) {
++        munmap(ebc_buffer, ebc_buffer_size);
++        ebc_buffer = nullptr;
++    }
++    if (ebc_fd >= 0)
++        close(ebc_fd);
+     drm_disable_crtc(drm_fd, main_monitor_crtc);
+     drm_destroy_surface(drm_surfaces[0]);
+     drm_destroy_surface(drm_surfaces[1]);

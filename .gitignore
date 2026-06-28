@@ -1,0 +1,9 @@
+.DS_Store
+/.cache/
+
+# Generated from the pinned stock OTA by prepare-stock.sh.
+/prebuilt/kernel
+/prebuilt/dtb/
+/prebuilt/libion.so
+/prebuilt/recovery_dtbo.img
+/recovery/root/waveform/eink_waveform.wbf

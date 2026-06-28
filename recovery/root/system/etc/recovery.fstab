@@ -1,0 +1,29 @@
+# Logical partitions
+system                                                  /system                ext4    ro,barrier=1,discard                                                                          wait,slotselect,logical
+system_ext                                              /system_ext            ext4    ro,barrier=1,discard                                                                          wait,slotselect,logical
+product                                                 /product               ext4    ro,barrier=1,discard                                                                          wait,slotselect,logical
+vendor                                                  /vendor                ext4    ro,barrier=1,discard                                                                          wait,slotselect,logical
+
+# File-based and metadata encryption from the stock Android 11 eMMC fstab.
+# The device boots with androidboot.fstab_suffix=emmc; the default variant uses
+# an incompatible inlinecrypt_optimized filename policy.
+/dev/block/bootdevice/by-name/metadata                  /metadata              ext4    noatime,nosuid,nodev,discard                                                                  wait,check,formattable,first_stage_mount
+/dev/block/bootdevice/by-name/userdata                  /data                  f2fs    noatime,nosuid,nodev,discard,reserve_root=32768,resgid=1065,fsync_mode=nobarrier,inlinecrypt           latemount,wait,check,formattable,quota,reservedsize=128M,fileencryption=aes-256-xts:aes-256-cts:v2+emmc_optimized+wrappedkey_v0,metadata_encryption=aes-256-xts:wrappedkey_v0,keydirectory=/metadata/vold/metadata_encryption,checkpoint=fs
+
+# Device partitions
+/dev/block/bootdevice/by-name/boot                      /boot                  emmc    defaults                                                                                      defaults,slotselect
+/dev/block/bootdevice/by-name/recovery                  /recovery              emmc    defaults                                                                                      defaults,slotselect
+/dev/block/bootdevice/by-name/dtbo                      /dtbo                  emmc    defaults                                                                                      defaults,slotselect
+/dev/block/bootdevice/by-name/vbmeta                    /vbmeta                emmc    defaults                                                                                      defaults,slotselect
+/dev/block/bootdevice/by-name/vbmeta_system             /vbmeta_system         emmc    defaults                                                                                      defaults,slotselect
+/dev/block/bootdevice/by-name/misc                      /misc                  emmc    defaults                                                                                      defaults
+/dev/block/bootdevice/by-name/persist                   /persist               ext4    noatime,nosuid,nodev,barrier=1                                                                wait
+/dev/block/bootdevice/by-name/onyxconfig                /onyxconfig            ext4    defaults                                                                                      wait
+
+# Removable storage
+/dev/block/mmcblk1p1                                    /sdcard                vfat    nosuid,nodev                                                                                   wait
+# TWRP turns sysfs-style voldmanaged entries into a /dev/block/* wildcard on
+# this device, which incorrectly discovers every internal eMMC partition as a
+# USB volume. Restrict wildcard discovery to SCSI disks created by USB mass
+# storage (sda, sdb, ...).
+/dev/block/sd*                                         /usbotg                auto    nosuid,nodev                                                                                   wait,voldmanaged=usbotg:auto
