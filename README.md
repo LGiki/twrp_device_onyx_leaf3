@@ -34,6 +34,10 @@ The download uses HTTP because that is the firmware URL supplied by ONYX. The
 script refuses to process it unless the complete file matches the pinned
 SHA-256 checksum.
 
+Verified extracted inputs are also retained under `stock-backup/page-3.5` as
+an emergency backup. They are not used by the build; builds continue to obtain
+all stock inputs through `prepare-stock.sh`.
+
 The preparation workflow uses pinned revisions of:
 
 - [Hagb/decryptBooxUpdateUpx](https://github.com/Hagb/decryptBooxUpdateUpx)
