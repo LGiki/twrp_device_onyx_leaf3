@@ -3,14 +3,14 @@ set -euo pipefail
 
 DEVICE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ANDROID_ROOT="${ANDROID_ROOT:-$(cd "$DEVICE_DIR/../../.." && pwd)}"
-CACHE_DIR="${BOOX_PAGE_STOCK_CACHE:-$DEVICE_DIR/.cache/page-stock}"
+CACHE_DIR="${BOOX_PAGE_354_STOCK_CACHE:-$DEVICE_DIR/.cache/page-3.5.4-stock}"
 TOOLS_DIR="$CACHE_DIR/tools"
 VENV_DIR="$CACHE_DIR/venv"
 
-FIRMWARE_URL="http://firmware-us.boox.com/718b4a1554ab4c700dfe3c4c9935b8fd/update.upx"
-UPX_SHA256="e14899e59c08c95604ee9f85ab5811d63961d15d294964d589719287ea6e68af"
-ZIP_SHA256="4414e76a4a76d21a2c814c12abace39f554ad8a0ad6a61f9431b24c084224cf1"
-RECOVERY_SHA256="a667370e0e65e5523b42cbf1e73bbb8cdac4c5d1d5b75de9e27f163668ad6517"
+FIRMWARE_URL="http://firmware-us.boox.com/e275d1c30d46c00585188fb00127acde/update.upx"
+UPX_SHA256="f982b3639a2d4df64cf13616b197d1bb0cc894cda48bba449320f18aec8dd493"
+ZIP_SHA256="ca5fd7dd5b85bfdcc25970cb21fdde478bb25e434986009ebd2d5b3a42c1f696"
+RECOVERY_SHA256="2bc82de127913c1fad7b5c3f1efaa282ee1354315375094245e62061a58ede37"
 
 DECRYPT_REPO="https://github.com/Hagb/decryptBooxUpdateUpx.git"
 DECRYPT_REVISION="ddcabf6ce27f1acff51a2506b597d506e5f1a928"
@@ -110,9 +110,9 @@ python3 "$UNPACK_BOOTIMG" --boot_img "$RECOVERY_FILE" --out "$UNPACK_DIR" >/dev/
 )
 
 verify_sha256 "$UNPACK_DIR/kernel" \
-    "8a5afcacbda9b5fd9e0c56f4c3b576595286a347a4db53a9c00ec98941021a3f"
+    "2a021fcf41685fdc424931c7760c172cc44e81f35472daf0efd23a40f898c4e7"
 verify_sha256 "$UNPACK_DIR/dtb" \
-    "d4b09369d9e93992711f79fb95701b7f3899a4efc788de0fccbea7f668b2b089"
+    "535de563a6382a0ed3e335d7d66e17701f90f92f96aee765b059f97f73f17913"
 verify_sha256 "$UNPACK_DIR/recovery_dtbo" \
     "d257f1d88e74c0cc472d023a956f98cda0b53e1a7c0d3e94d36c8498f1d99ee9"
 verify_sha256 "$RAMDISK_DIR/system/lib64/libion.so" \
