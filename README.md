@@ -1,13 +1,12 @@
 # TWRP device tree for ONYX BOOX Leaf3 / Page
 
-Unofficial TWRP device tree for the ONYX BOOX Leaf3 (China), using recovery
-boot-chain components from the closely related BOOX Page global firmware.
-
-This is a diagnostic TWRP 11 tree. The OTA-derived build must be tested on
-hardware before it is described as working or distributed as a release image.
+Unofficial TWRP 11 device tree for the ONYX BOOX Leaf3 (China) and BOOX Page
+(Global). The same recovery image is confirmed working on both models and uses
+boot-chain components extracted from BOOX Page global firmware.
 
 ## Device
 
+- Supported models: BOOX Leaf3 (China) and BOOX Page (Global)
 - SoC: Qualcomm Bengal (Snapdragon 662), arm64
 - Stock OS: Android 11
 - Kernel: 4.19.157
@@ -138,8 +137,9 @@ Do not flash an untested image. This device has real `recovery_a` and
 verified stock recovery backup and confirm slot semantics before writing any
 partition.
 
-The current Page-OTA-derived build still requires Leaf3 hardware validation
-of:
+The current Page 3.5 OTA-derived build has been confirmed working on both BOOX
+Leaf3 and BOOX Page. Before relying on it for critical recovery operations,
+independently verify:
 
 - Boot and ADB
 - E-ink display refresh and touch input
