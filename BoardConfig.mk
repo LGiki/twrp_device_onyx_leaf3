@@ -110,6 +110,13 @@ TW_INCLUDE_FBE_METADATA_DECRYPT := true
 TW_USE_FSCRYPT_POLICY := 2
 BOARD_USES_QCOM_FBE_DECRYPTION := true
 BOARD_USES_METADATA_PARTITION := true
+
+# Internal shared storage is /data/media. Declare this explicitly because the
+# physical SD card otherwise becomes TWRP's settings storage first; TWRP then
+# treats /data as a non-data-media partition and unmounts it after FBE setup.
+RECOVERY_SDCARD_ON_DATA := true
+TW_INTERNAL_STORAGE_PATH := "/data/media/0"
+TW_EXTERNAL_STORAGE_PATH := "/external_sd"
 TW_RECOVERY_ADDITIONAL_RELINK_LIBRARY_FILES := device/onyx/leaf3/prebuilt/libion.so
 TW_EXTRA_LANGUAGES := false
 TW_DEFAULT_LANGUAGE := en

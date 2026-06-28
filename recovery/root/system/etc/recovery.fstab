@@ -4,11 +4,12 @@ system_ext                                              /system_ext            e
 product                                                 /product               ext4    ro,barrier=1,discard                                                                          wait,slotselect,logical
 vendor                                                  /vendor                ext4    ro,barrier=1,discard                                                                          wait,slotselect,logical
 
-# File-based and metadata encryption from the stock Android 11 eMMC fstab.
-# The device boots with androidboot.fstab_suffix=emmc; the default variant uses
-# an incompatible inlinecrypt_optimized filename policy.
+# File-based and metadata encryption from stock Android 11. Existing Leaf3
+# data directories have fscrypt v2 flags 0x12 (PAD_16 + IV_INO_LBLK_64), so
+# recovery must use inlinecrypt_optimized even though this boot chain reports
+# androidboot.fstab_suffix=emmc.
 /dev/block/bootdevice/by-name/metadata                  /metadata              ext4    noatime,nosuid,nodev,discard                                                                  wait,check,formattable,first_stage_mount
-/dev/block/bootdevice/by-name/userdata                  /data                  f2fs    noatime,nosuid,nodev,discard,reserve_root=32768,resgid=1065,fsync_mode=nobarrier,inlinecrypt           latemount,wait,check,formattable,quota,reservedsize=128M,fileencryption=aes-256-xts:aes-256-cts:v2+emmc_optimized+wrappedkey_v0,metadata_encryption=aes-256-xts:wrappedkey_v0,keydirectory=/metadata/vold/metadata_encryption,checkpoint=fs
+/dev/block/bootdevice/by-name/userdata                  /data                  f2fs    noatime,nosuid,nodev,discard,reserve_root=32768,resgid=1065,fsync_mode=nobarrier,inlinecrypt           latemount,wait,check,formattable,quota,reservedsize=128M,fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized+wrappedkey_v0,metadata_encryption=aes-256-xts:wrappedkey_v0,keydirectory=/metadata/vold/metadata_encryption,checkpoint=fs
 
 # Device partitions
 /dev/block/bootdevice/by-name/boot                      /boot                  emmc    defaults                                                                                      defaults,slotselect
@@ -21,7 +22,7 @@ vendor                                                  /vendor                e
 /dev/block/bootdevice/by-name/onyxconfig                /onyxconfig            ext4    defaults                                                                                      wait
 
 # Removable storage
-/dev/block/mmcblk1p1                                    /sdcard                vfat    nosuid,nodev                                                                                   wait
+/dev/block/mmcblk1p1                                    /external_sd           vfat    nosuid,nodev                                                                                   wait
 # TWRP turns sysfs-style voldmanaged entries into a /dev/block/* wildcard on
 # this device, which incorrectly discovers every internal eMMC partition as a
 # USB volume. Restrict wildcard discovery to SCSI disks created by USB mass

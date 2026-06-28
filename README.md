@@ -25,10 +25,10 @@ extracts `recovery.img`, and generates the required files locally.
 
 Pinned firmware:
 
-- URL: `http://firmware-us.boox.com/e275d1c30d46c00585188fb00127acde/update.upx`
-- OTA SHA-256: `f982b3639a2d4df64cf13616b197d1bb0cc894cda48bba449320f18aec8dd493`
-- Recovery fingerprint: `Onyx/Page/Page:11/2024-09-11_03-46_3.5.4_fbdec6b69a/47380:user/release-keys`
-- Security patch: `2024-02-01`
+- URL: `http://firmware-us-volc.boox.com/73efa5396d8ff9f53fd34a7e282b8053/update.upx`
+- OTA SHA-256: `0be5912e1bc73a8177abe03623f0d1140c01184c49a2f7d7012b43573f6e148c`
+- Recovery fingerprint: `Onyx/Page/Page:11/2023-11-22_09-59_3.5_946657f755/43508:user/dev-keys`
+- Security patch: `2023-06-05`
 
 The download uses HTTP because that is the firmware URL supplied by ONYX. The
 script refuses to process it unless the complete file matches the pinned
