@@ -19,7 +19,7 @@ hardware before it is described as working or distributed as a release image.
 
 ## Stock files
 
-No ONYX firmware or proprietary binaries are committed to this repository.
+Normal builds do not use committed ONYX firmware or proprietary binaries.
 `prepare-stock.sh` downloads the pinned Page OTA, verifies it, decrypts it,
 extracts `recovery.img`, and generates the required files locally.
 
@@ -146,6 +146,11 @@ of:
 - Logical and removable storage
 - File and metadata decryption
 - Backup and restore
+
+## Credits
+
+- [@Renate](https://www.mobileread.com/forums/member.php?u=159141) for their
+  BOOX device research and technical guidance.
 
 ## License
 
