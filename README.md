@@ -1,8 +1,7 @@
 # TWRP device tree for ONYX BOOX Leaf3 / Page
 
-Unofficial TWRP device tree for the ONYX BOOX Leaf3 (China). The BOOX Page is
-the closely related global model, but Page compatibility has not been verified
-on hardware.
+Unofficial TWRP device tree for the ONYX BOOX Leaf3 (China), using recovery
+boot-chain components from the closely related BOOX Page global firmware.
 
 This is a diagnostic TWRP 11 tree. The OTA-derived build must be tested on
 hardware before it is described as working or distributed as a release image.
@@ -21,14 +20,14 @@ hardware before it is described as working or distributed as a release image.
 ## Stock files
 
 No ONYX firmware or proprietary binaries are committed to this repository.
-`prepare-stock.sh` downloads the pinned Leaf3 OTA, verifies it, decrypts it,
+`prepare-stock.sh` downloads the pinned Page OTA, verifies it, decrypts it,
 extracts `recovery.img`, and generates the required files locally.
 
 Pinned firmware:
 
-- URL: `http://firmware.boox.com/8ed6ad7599ed5b21d774c3dbb2262364/update.upx`
-- OTA SHA-256: `9aac2e5e73096abcfdca4e738c57999dd640fc0c21b821ed869547f1c9dec2af`
-- Build fingerprint: `ONYX/BOOX/BOOX:11/RKQ1.210614.002/200:userdebug/release-keys`
+- URL: `http://firmware-us.boox.com/718b4a1554ab4c700dfe3c4c9935b8fd/update.upx`
+- OTA SHA-256: `e14899e59c08c95604ee9f85ab5811d63961d15d294964d589719287ea6e68af`
+- Recovery fingerprint: `Onyx/Page/Page:11/2025-04-02_04-14_v4.0-rel_6d15a71551/49342:user/release-keys`
 - Security patch: `2024-02-01`
 
 The download uses HTTP because that is the firmware URL supplied by ONYX. The
@@ -135,7 +134,8 @@ Do not flash an untested image. This device has real `recovery_a` and
 verified stock recovery backup and confirm slot semantics before writing any
 partition.
 
-The current OTA-derived build still requires hardware validation of:
+The current Page-OTA-derived build still requires Leaf3 hardware validation
+of:
 
 - Boot and ADB
 - E-ink display refresh and touch input

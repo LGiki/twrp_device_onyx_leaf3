@@ -49,11 +49,11 @@ jobs:
             -b twrp-11
           repo sync -c --no-clone-bundle --no-tags --fail-fast -j4
 
-      - name: Restore verified Leaf3 OTA
+      - name: Restore verified Page OTA
         uses: actions/cache@v4
         with:
-          path: device/onyx/leaf3/.cache/stock/update.upx
-          key: leaf3-ota-9aac2e5e73096abcfdca4e738c57999dd640fc0c21b821ed869547f1c9dec2af
+          path: device/onyx/leaf3/.cache/page-stock/update.upx
+          key: page-ota-e14899e59c08c95604ee9f85ab5811d63961d15d294964d589719287ea6e68af
 
       - name: Prepare stock build inputs
         run: device/onyx/leaf3/prepare-stock.sh
@@ -81,8 +81,8 @@ jobs:
           python3 system/tools/mkbootimg/unpack_bootimg.py \
             --boot_img "${IMAGE}" --out "${UNPACKED}" >/dev/null
 
-          echo "2a021fcf41685fdc424931c7760c172cc44e81f35472daf0efd23a40f898c4e7  ${UNPACKED}/kernel" | sha256sum -c -
-          echo "2c7f296db7cb6f813b0b804caa6166d86d48a3f4bcec7a81ecd27de3ab66f84c  ${UNPACKED}/dtb" | sha256sum -c -
+          echo "8a5afcacbda9b5fd9e0c56f4c3b576595286a347a4db53a9c00ec98941021a3f  ${UNPACKED}/kernel" | sha256sum -c -
+          echo "d4b09369d9e93992711f79fb95701b7f3899a4efc788de0fccbea7f668b2b089  ${UNPACKED}/dtb" | sha256sum -c -
           echo "d257f1d88e74c0cc472d023a956f98cda0b53e1a7c0d3e94d36c8498f1d99ee9  ${UNPACKED}/recovery_dtbo" | sha256sum -c -
           test "$(stat -c %s "${UNPACKED}/ramdisk")" -lt 15728640
 

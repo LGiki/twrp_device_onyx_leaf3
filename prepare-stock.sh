@@ -3,14 +3,14 @@ set -euo pipefail
 
 DEVICE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ANDROID_ROOT="${ANDROID_ROOT:-$(cd "$DEVICE_DIR/../../.." && pwd)}"
-CACHE_DIR="${LEAF3_STOCK_CACHE:-$DEVICE_DIR/.cache/stock}"
+CACHE_DIR="${BOOX_PAGE_STOCK_CACHE:-$DEVICE_DIR/.cache/page-stock}"
 TOOLS_DIR="$CACHE_DIR/tools"
 VENV_DIR="$CACHE_DIR/venv"
 
-FIRMWARE_URL="http://firmware.boox.com/8ed6ad7599ed5b21d774c3dbb2262364/update.upx"
-UPX_SHA256="9aac2e5e73096abcfdca4e738c57999dd640fc0c21b821ed869547f1c9dec2af"
-ZIP_SHA256="5d1ac30b3ffe88611c5524cde472af311d78aba40e21c885bd2753c679d3c016"
-RECOVERY_SHA256="3ee94197e6c6c59d15a732cf551893484bb7fa7419d5144612986d9bb7b12f35"
+FIRMWARE_URL="http://firmware-us.boox.com/718b4a1554ab4c700dfe3c4c9935b8fd/update.upx"
+UPX_SHA256="e14899e59c08c95604ee9f85ab5811d63961d15d294964d589719287ea6e68af"
+ZIP_SHA256="4414e76a4a76d21a2c814c12abace39f554ad8a0ad6a61f9431b24c084224cf1"
+RECOVERY_SHA256="a667370e0e65e5523b42cbf1e73bbb8cdac4c5d1d5b75de9e27f163668ad6517"
 
 DECRYPT_REPO="https://github.com/Hagb/decryptBooxUpdateUpx.git"
 DECRYPT_REVISION="ddcabf6ce27f1acff51a2506b597d506e5f1a928"
@@ -93,7 +93,7 @@ UNPACK_DIR="$WORK_DIR/recovery-unpacked"
 RAMDISK_DIR="$WORK_DIR/ramdisk"
 
 "$VENV_DIR/bin/python" "$TOOLS_DIR/decryptBooxUpdateUpx/DeBooxUpx.py" \
-    Leaf3 "$UPX_FILE" "$ZIP_FILE"
+    Page "$UPX_FILE" "$ZIP_FILE"
 verify_sha256 "$ZIP_FILE" "$ZIP_SHA256"
 
 unzip -p "$ZIP_FILE" payload.bin > "$PAYLOAD_FILE"
@@ -110,9 +110,9 @@ python3 "$UNPACK_BOOTIMG" --boot_img "$RECOVERY_FILE" --out "$UNPACK_DIR" >/dev/
 )
 
 verify_sha256 "$UNPACK_DIR/kernel" \
-    "2a021fcf41685fdc424931c7760c172cc44e81f35472daf0efd23a40f898c4e7"
+    "8a5afcacbda9b5fd9e0c56f4c3b576595286a347a4db53a9c00ec98941021a3f"
 verify_sha256 "$UNPACK_DIR/dtb" \
-    "2c7f296db7cb6f813b0b804caa6166d86d48a3f4bcec7a81ecd27de3ab66f84c"
+    "d4b09369d9e93992711f79fb95701b7f3899a4efc788de0fccbea7f668b2b089"
 verify_sha256 "$UNPACK_DIR/recovery_dtbo" \
     "d257f1d88e74c0cc472d023a956f98cda0b53e1a7c0d3e94d36c8498f1d99ee9"
 verify_sha256 "$RAMDISK_DIR/system/lib64/libion.so" \
@@ -128,4 +128,4 @@ install -m 0644 "$RAMDISK_DIR/system/lib64/libion.so" "$DEVICE_DIR/prebuilt/libi
 install -m 0644 "$RAMDISK_DIR/waveform/eink_waveform.wbf" \
     "$DEVICE_DIR/recovery/root/waveform/eink_waveform.wbf"
 
-echo "Stock Leaf3 build inputs prepared successfully"
+echo "Stock Page build inputs prepared successfully"

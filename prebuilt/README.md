@@ -2,7 +2,7 @@
 
 This directory is intentionally source-only. Run `./prepare-stock.sh` after
 cloning the device tree into a TWRP source checkout. The script downloads the
-pinned ONYX Leaf3 OTA and generates:
+pinned ONYX Page OTA and generates:
 
 - `kernel`
 - `dtb/leaf3.dtb`
