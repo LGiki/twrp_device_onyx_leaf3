@@ -98,10 +98,9 @@ TW_DEFAULT_BRIGHTNESS := 14
 TARGET_RECOVERY_QCOM_RTC_FIX := true
 TW_QCOM_ATS_OFFSET := 1782539754000
 
-# Keep the first boot diagnostic small. The stock load addresses leave exactly
-# 15 MiB between the compressed ramdisk and DTB; the full feature set exceeded
-# that limit and overlapped the DTB before userspace could start.
-TW_INCLUDE_FASTBOOTD := false
+# The stock load addresses leave exactly 15 MiB between the compressed ramdisk
+# and DTB. Keep the resulting recovery ramdisk below that limit.
+TW_INCLUDE_FASTBOOTD := true
 
 # TWRP features
 TW_INCLUDE_CRYPTO := true
