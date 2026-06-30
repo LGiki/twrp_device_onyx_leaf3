@@ -23,7 +23,6 @@ jobs:
       BUILD_JOBS: "4"
       USE_CCACHE: "1"
       CCACHE_EXEC: /usr/bin/ccache
-      CCACHE_DIR: ${{ runner.temp }}/ccache
       CCACHE_COMPILERCHECK: content
 
     steps:
@@ -49,12 +48,14 @@ jobs:
       - name: Restore compiler cache
         uses: actions/cache@v4
         with:
-          path: ${{ env.CCACHE_DIR }}
+          path: ${{ runner.temp }}/ccache
           key: ${{ runner.os }}-ccache-twrp11-leaf3-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-ccache-twrp11-leaf3-
 
       - name: Configure compiler cache
+        env:
+          CCACHE_DIR: ${{ runner.temp }}/ccache
         run: |
           ccache --max-size=4G
           ccache --zero-stats
@@ -79,6 +80,8 @@ jobs:
         run: device/onyx/leaf3/apply-patches.sh
 
       - name: Build recovery image
+        env:
+          CCACHE_DIR: ${{ runner.temp }}/ccache
         run: |
           source build/envsetup.sh
           lunch twrp_leaf3-eng
@@ -86,6 +89,8 @@ jobs:
 
       - name: Show compiler cache statistics
         if: always()
+        env:
+          CCACHE_DIR: ${{ runner.temp }}/ccache
         run: ccache --show-stats
 
       - name: Verify recovery image
