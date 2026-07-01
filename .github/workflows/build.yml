@@ -110,7 +110,9 @@ jobs:
           echo "d9390eb8a840b1b65929ba154f6efa42e8a42459e6296ca1143b6591c0728ec6  ${UNPACKED}/kernel" | sha256sum -c -
           echo "1b8480fcaffa603b252c53a96114384220681b877c81ca2b3c49728a51d50f68  ${UNPACKED}/dtb" | sha256sum -c -
           echo "274f175910629372e08b6c227db5e037a0e69fa0bbc3ddb85a9e4d428c085656  ${UNPACKED}/recovery_dtbo" | sha256sum -c -
-          test "$(stat -c %s "${UNPACKED}/ramdisk")" -lt 15728640
+          RAMDISK_SIZE=$(stat -c %s "${UNPACKED}/ramdisk")
+          echo "Compressed ramdisk: ${RAMDISK_SIZE} bytes"
+          test "${RAMDISK_SIZE}" -lt 15728640
 
           "${MAGISKBOOT}" decompress "${UNPACKED}/ramdisk" "${RAMDISK_CPIO}"
           "${MAGISKBOOT}" cpio "${RAMDISK_CPIO}" \
