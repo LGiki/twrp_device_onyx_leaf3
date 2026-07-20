@@ -1,6 +1,10 @@
 LOCAL_PATH := device/onyx/leaf3
 
 PRODUCT_USE_DYNAMIC_PARTITIONS := true
+# Stock OTAs are Virtual A/B payloads. This also lets recovery sideload use
+# the complete super partition for a full payload rather than applying the
+# conventional A/B half-super limit.
+PRODUCT_VIRTUAL_AB_OTA := true
 PRODUCT_SHIPPING_API_LEVEL := 30
 PRODUCT_TARGET_VNDK_VERSION := 30
 
@@ -34,4 +38,5 @@ PRODUCT_COPY_FILES += \
 PRODUCT_PROPERTY_OVERRIDES += \
     ro.board.platform=bengal \
     ro.product.device=BOOX \
-    ro.product.model=Leaf3
+    ro.product.model=Leaf3 \
+    ro.virtual_ab.enabled=true
