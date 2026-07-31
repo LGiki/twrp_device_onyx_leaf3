@@ -119,7 +119,10 @@ TW_EXTERNAL_STORAGE_PATH := "/external_sd"
 TW_RECOVERY_ADDITIONAL_RELINK_LIBRARY_FILES := device/onyx/leaf3/prebuilt/libion.so
 TW_EXTRA_LANGUAGES := false
 TW_DEFAULT_LANGUAGE := en
-TW_INCLUDE_REPACKTOOLS := true
+# Leaf3/Page boot images do not contain the recovery ramdisk.  Enabling the
+# repack tools exposes TWRP's "Install Recovery Ramdisk" action, which patches
+# boot instead of flashing this device's dedicated recovery_a/recovery_b slot.
+TW_INCLUDE_REPACKTOOLS := false
 TW_INCLUDE_RESETPROP := true
 TW_EXCLUDE_TWRPAPP := true
 TW_EXCLUDE_NANO := true
